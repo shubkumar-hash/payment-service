@@ -1,10 +1,12 @@
 package com.example.payment_service.service;
 
 import com.example.payment_service.dto.BankResponse;
+import com.example.payment_service.dto.MerchantResponse;
 import com.example.payment_service.enums.PaymentStatus;
 import com.example.payment_service.enums.TransactionStatus;
 import com.example.payment_service.exception.PaymentNotFoundException;
 import com.example.payment_service.feign.BankInterface;
+import com.example.payment_service.feign.MerchantInterface;
 import com.example.payment_service.model.Payment;
 import com.example.payment_service.model.Transaction;
 import com.example.payment_service.repository.PaymentRepository;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,8 +25,16 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final TransactionRepository transactionRepository;
     private final BankInterface bankInterface;
+    private final MerchantInterface merchantInterface;
 
-    public Payment createPayment(String key, Payment payment){
+    public Payment createPayment(UUID merchantId, String key, Payment payment){
+
+        MerchantResponse merchant = merchantInterface.getMerchant(merchantId);
+
+        if (merchant == null || merchant.getStatus() == null
+                || merchant.getStatus() != MerchantResponse.MerchantStatus.ACTIVE) {
+            throw new RuntimeException("Invalid merchant");
+        }
 
         Optional<Payment> existingPayment =
                 paymentRepository.findByIdempotencyKey(key);
@@ -33,6 +44,7 @@ public class PaymentService {
         }
 
         payment.setIdempotencyKey(key);
+        payment.setMerchantId(merchantId);
         payment.setStatus(PaymentStatus.CREATED);
         payment.setCreatedAt(LocalDateTime.now());
 
